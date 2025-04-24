@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Optional
 from pathlib import Path
-from langchain_community.chat_models import ChatOllama
-from langchain_community.embeddings import OllamaEmbeddings
+from langchain_cohere import ChatCohere, CohereEmbeddings
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import FAISS
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -21,19 +20,20 @@ import numpy as np
 import time
 
 # Configure FAISS for optimal performance
-os.environ["OMP_NUM_THREADS"] = "8"
-faiss.omp_set_num_threads(8)
+os.environ["COHERE_API_KEY"] = "2aIcYOdp7Ah1CUT0esEGC6I24MBXpcPosrW3p2ui"
+os.environ["OMP_NUM_THREADS"] = str(os.cpu_count() or 6)
+faiss.omp_set_num_threads(os.cpu_count() or 6)
 
 class ResearchAssistantLangChain:
     def __init__(self, persist_dir: Optional[str] = None):
-        self.llm = ChatOllama(
-            base_url="http://localhost:11434",
-            model="llama3.2:latest",
+        # Initialize Cohere components
+        self.llm = ChatCohere(
+            model="command-r",
             temperature=0.1,
-            num_ctx=4096
+            max_tokens=4096
         )
 
-        self.embeddings = OllamaEmbeddings(model="llama3.2:latest")
+        self.embeddings = CohereEmbeddings(model="embed-english-v3.0")
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=2000,
             chunk_overlap=400,
@@ -140,8 +140,8 @@ class ResearchAssistantLangChain:
 
         try:
             retriever = self.vector_db.as_retriever(
-            search_type="similarity_score_threshold",  # Changed from "similarity"
-            search_kwargs={"k": num_results, "score_threshold": 0.3}
+                search_type="similarity_score_threshold",
+                search_kwargs={"k": num_results, "score_threshold": 0.3}
             )
 
             prompt = ChatPromptTemplate.from_template("""
