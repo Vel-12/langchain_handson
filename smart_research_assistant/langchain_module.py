@@ -20,7 +20,7 @@ import numpy as np
 import time
 
 # Configure FAISS for optimal performance
-os.environ["COHERE_API_KEY"] = "2aIcYOdp7Ah1CUT0esEGC6I24MBXpcPosrW3p2ui"
+os.environ["COHERE_API_KEY"] = st.secrets["COHERE_API_KEY"]
 os.environ["OMP_NUM_THREADS"] = str(os.cpu_count() or 6)
 faiss.omp_set_num_threads(os.cpu_count() or 6)
 
