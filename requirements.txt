@@ -1,0 +1,11 @@
+langchain
+langchain-community
+langgraph
+faiss-cpu
+streamlit
+beautifulsoup4
+lxml
+python-dotenv
+pydantic
+typing-extensions
+tqdm
