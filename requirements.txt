@@ -1,4 +1,5 @@
 langchain
+langchain-cohere
 langchain-community
 langgraph
 faiss-cpu
