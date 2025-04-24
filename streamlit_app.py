@@ -1,83 +1,90 @@
 import streamlit as st
 from smart_research_assistant.langchain_module import ResearchAssistantLangChain
+from time import time
+
+def display_progress(stage, progress_bar, stages):
+    progress = (stages.index(stage)+1)/len(stages)
+    progress_bar.progress(progress)
+    st.session_state.status.text(f"{stage}...")
 
 def main():
-    st.title("Research Assistant with Ollama and LangChain")
-    
-    # Initialize the research assistant
+    st.set_page_config(page_title="Research Assistant", layout="wide")
+    st.title("⚡ Turbo Research Assistant")
+
+    # Initialize session state variables
     if 'assistant' not in st.session_state:
-        st.session_state.assistant = ResearchAssistantLangChain()
-        st.session_state.processed_urls = []
+        st.session_state.assistant = ResearchAssistantLangChain("./research_db")
+        st.session_state.url_cache = set()
+        st.session_state.status = st.empty()  # Initialize status placeholder
 
-    # Sidebar for URL input
     with st.sidebar:
-        st.header("Configuration")
-        urls = st.text_area(
-            "Enter URLs to research (one per line)",
-            height=150,
-            help="Paste one or more URLs you want to analyze"
-        )
+        st.header("🔗 Data Sources")
+        urls = st.text_area("Enter URLs (one per line)", height=150)
         
-        if st.button("Process URLs"):
+        if st.button("🚀 Process URLs"):
             if urls:
-                url_list = [url.strip() for url in urls.split('\n') if url.strip()]
-                try:
-                    with st.spinner("Loading and processing documents..."):
-                        documents = st.session_state.assistant.load_urls(url_list)
-                        st.session_state.assistant.create_vector_store(documents)
-                        st.session_state.processed_urls = url_list
-                    st.success(f"Successfully processed {len(url_list)} URLs!")
-                except Exception as e:
-                    st.error(f"Error processing URLs: {str(e)}")
-            else:
-                st.warning("Please enter at least one URL")
+                new_urls = [url.strip() for url in urls.split('\n') 
+                            if url.strip() and url not in st.session_state.url_cache]
+                
+                if new_urls:
+                    with st.spinner("🔄 Processing..."):
+                        start = time()
+                        docs = st.session_state.assistant.load_urls(new_urls)
+                        st.session_state.assistant.create_vector_store(docs)
+                        st.session_state.url_cache.update(new_urls)
+                        st.success(f"✅ Added {len(new_urls)} docs in {time()-start:.1f}s")
+                else:
+                    st.info("ℹ️ All URLs already processed")
 
-    # Main interface
-    tab1, tab2 = st.tabs(["Research Query", "Document Summarization"])
+    tab1, tab2 = st.tabs(["🔍 Query", "📝 Summarize"])
 
     with tab1:
-        st.header("Query Your Research")
+        st.header("Ask Questions")
+        query = st.text_input("Your research question:", key="query")
         
-        if st.session_state.processed_urls:
-            st.write(f"Loaded {len(st.session_state.processed_urls)} URLs")
-            query = st.text_input("Enter your research question:")
+        if query:
+            progress_bar = st.progress(0)
+            status = st.empty()  # Use local status instead of session state
+            stages = ["Initializing", "Vector Search", "Generating Answer"]
             
-            if query:
-                with st.spinner("Searching for answers..."):
-                    try:
-                        result = st.session_state.assistant.query_data(query)
-                        st.subheader("Answer")
-                        st.write(result["answer"])
-                        
-                        st.subheader("Source Documents")
-                        for i, doc in enumerate(result["source_documents"], 1):
-                            with st.expander(f"Source Document {i}"):
-                                st.write(doc.page_content)
-                                st.caption(f"Source: {doc.metadata.get('source', 'Unknown')}")
-                    except Exception as e:
-                        st.error(f"Error querying data: {str(e)}")
-        else:
-            st.info("Please load URLs in the sidebar to begin querying")
+            try:
+                status.text(f"{stages[0]}...")
+                progress_bar.progress(1/len(stages))
+                
+                start = time()                
+                result = st.session_state.assistant.query_data(query)
+                
+                status.text(f"{stages[1]}...")
+                progress_bar.progress(2/len(stages))
+                
+                st.subheader("Answer")
+                st.markdown(result['answer'])
+                
+                status.text(f"{stages[2]}...")
+                progress_bar.progress(1.0)
+                
+                with st.expander("📚 Source Documents"):
+                    for i, source in enumerate(result['sources'], 1):
+                        st.caption(f"[{i}] {source}")
+                
+                st.caption(f"⏱️ Total time: {time()-start:.2f}s")
+
+            except Exception as e:
+                st.error(f"Query failed: {str(e)}")
+            finally:
+                progress_bar.empty()
+                status.empty()
 
     with tab2:
         st.header("Document Summarization")
-        text_to_summarize = st.text_area(
-            "Paste text to summarize",
-            height=200,
-            help="Enter any text you want to summarize using the LLM"
-        )
-        
+        text = st.text_area("Text to summarize:", height=200)
         if st.button("Generate Summary"):
-            if text_to_summarize.strip():
-                with st.spinner("Generating summary..."):
-                    try:
-                        summary = st.session_state.assistant.summarize_documents(text_to_summarize)
-                        st.subheader("Summary")
-                        st.info(summary)
-                    except Exception as e:
-                        st.error(f"Error generating summary: {str(e)}")
-            else:
-                st.warning("Please enter some text to summarize")
+            if text:
+                with st.spinner("Analyzing..."):
+                    start = time()
+                    summary = st.session_state.assistant.summarize_document(text)
+                    st.markdown(summary)
+                    st.caption(f"Generated in {time()-start:.2f}s")
 
 if __name__ == "__main__":
     main()
